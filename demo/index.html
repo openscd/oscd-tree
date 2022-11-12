@@ -1,0 +1,18 @@
+<title>OpenSCD Core Demo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@300&family=Roboto:wght@300;400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Material+Icons&display=block">
+
+<oscd-tree multi></oscd-tree>
+
+<script type="module">
+import '../dist/oscd-tree.js';
+
+const oscdTree = document.querySelector('oscd-tree');
+await oscdTree.updateComplete;
+
+oscdTree.selection = {'a': {} }
+oscdTree.read = async path => ({
+  path,
+  entries: ['a', 'b', 'c', 'd'].includes(path[path.length - 1]) ? [] : ['a', 'b', 'c', 'd', 'w', 'x', 'y', 'z'],
+})
+</script>
