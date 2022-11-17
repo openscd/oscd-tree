@@ -1,6 +1,9 @@
+/* eslint-disable no-param-reassign */
+/* eslint-disable class-methods-use-this */
 import { css, html, LitElement, TemplateResult } from 'lit';
 import { customElement, property, query } from 'lit/decorators.js';
 import { until } from 'lit/directives/until.js';
+import { ref } from 'lit/directives/ref.js';
 
 import '@material/mwc-icon';
 import '@material/mwc-list/mwc-list.js';
@@ -38,11 +41,29 @@ function depth(t: Record<string, unknown>, mem = new WeakSet()): number {
   }
 }
 
-const waitingList = html`<mwc-list
+function getColumns(rows: Path[], count: number): (Path | undefined)[][] {
+  return new Array(count)
+    .fill(0)
+    .map((_c, c) =>
+      new Array(rows.length)
+        .fill(0)
+        .map((_r, r) =>
+          c < rows[r].length ? rows[r].slice(0, c + 1) : undefined
+        )
+    );
+}
+
+const waitingColumn = html`<mwc-list
   ><mwc-list-item noninteractive hasMeta
     ><mwc-icon slot="meta">pending</mwc-icon></mwc-list-item
   ></mwc-list
 >`;
+const placeholderCell = html`<mwc-list-item noninteractive></mwc-list-item>`;
+
+function samePath(a: Path, b?: Path): boolean {
+  if (a.length !== b?.length) return false;
+  return a.every((x, i) => b[i] === x);
+}
 
 @customElement('oscd-tree')
 export class OscdTree extends LitElement {
@@ -83,19 +104,6 @@ export class OscdTree extends LitElement {
     this.paths = [path];
   }
 
-  async columns(): Promise<(Path | undefined)[][]> {
-    const rows = await this.rows();
-    return new Array(this.depth + 1)
-      .fill(0)
-      .map((_c, c) =>
-        new Array(rows.length)
-          .fill(0)
-          .map((_r, r) =>
-            c < rows[r].length ? rows[r].slice(0, c + 1) : undefined
-          )
-      );
-  }
-
   @property({ attribute: false })
   read: (path: Path) => Promise<Directory> = async path => ({
     path,
@@ -110,22 +118,23 @@ export class OscdTree extends LitElement {
     return this.searchUI.value;
   }
 
-  /* eslint-disable class-methods-use-this */
-  getTitle(path: string[]): string {
-    return path.join('/');
+  /* eslint-disable @typescript-eslint/no-unused-vars */
+  isMandatory(path: string[]): boolean {
+    return false;
   }
 
-  /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
-  getDisplayString(entry: string, path: string[]): string {
-    return entry;
+  getText(path: string[]): string {
+    return path[path.length - 1] ?? '';
   }
-  /* eslint-enable class-methods-use-this */
+  /* eslint-enable @typescript-eslint/no-unused-vars */
 
   @query('mwc-textfield[icon="search"]')
   searchUI!: TextField;
 
   @query('div')
   container!: Element;
+
+  private collapsed = new Set<string>();
 
   private async rows(): Promise<Path[]> {
     const dirs = await Promise.all([
@@ -144,7 +153,14 @@ export class OscdTree extends LitElement {
           !rs.some(r2 => r2.length > r.length && r.every((s, i) => r2[i] === s))
       )
       .filter(r => this.filter === '' || r.join(' ').includes(this.filter))
-      .sort((r1, r2) => r1.join(' ').localeCompare(r2.join(' ')));
+      .map(r => {
+        for (let i = r.length - 1; i > 0; i -= 1)
+          if (this.collapsed.has(JSON.stringify(r.slice(0, -i))))
+            return r.slice(0, -i);
+        return r;
+      })
+      .sort((r1, r2) => r1.join(' ').localeCompare(r2.join(' ')))
+      .filter((x, i, xs) => !samePath(x, xs[i - 1]));
   }
 
   private getPaths(maxLength?: number): Path[] {
@@ -155,8 +171,8 @@ export class OscdTree extends LitElement {
       i -= 1;
       paths = paths.flatMap(path => {
         let dir = this.selection;
-        for (const entry of path) dir = dir[entry]; // recursive descent
-        const newPaths = Object.keys(dir).map(entry => path.concat(entry));
+        for (const slug of path) dir = dir[slug]; // recursive descent
+        const newPaths = Object.keys(dir).map(slug => path.concat(slug));
         return newPaths.length === 0 ? [path] : newPaths;
       });
     }
@@ -168,9 +184,16 @@ export class OscdTree extends LitElement {
           .sort((p1, p2) => p1.join(' ').localeCompare(p2.join(' ')));
   }
 
+  private toggleCollapse(serializedPath: string) {
+    if (this.collapsed.has(serializedPath))
+      this.collapsed.delete(serializedPath);
+    else this.collapsed.add(serializedPath);
+    this.requestUpdate();
+  }
+
   multiSelect(event: SingleSelectedEvent, path: Path, clicked: string): void {
     let dir = this.selection;
-    for (const entry of path) dir = dir[entry]; // recursive descent
+    for (const slug of path) dir = dir[slug]; // recursive descent
 
     if (dir && dir[clicked]) delete dir[clicked];
     // deselect if selected
@@ -184,11 +207,33 @@ export class OscdTree extends LitElement {
   }
 
   async select(event: SingleSelectedEvent): Promise<void> {
-    const clicked = <ListItem & { dataPath: Path }>(
-      (<List>event.target).selected
-    );
-    const selectedValue = clicked.value;
-    const path = clicked.dataPath;
+    const clicked = <ListItem>(<List>event.target).selected;
+    const selectedValue = clicked?.value;
+    if (!selectedValue) return;
+    if (selectedValue === 'selectAll') {
+      const items = Array.from(clicked!.closest('mwc-list')!.children);
+      if (!items?.length) return;
+      const selected = items
+        .slice(1)
+        .some(
+          item =>
+            !(item as ListItem).activated &&
+            !(item as ListItem).noninteractive &&
+            !(item as ListItem).disabled
+        );
+      items.forEach(item => {
+        if (selected !== (item as ListItem).activated)
+          item.dispatchEvent(
+            new CustomEvent('request-selected', {
+              bubbles: true,
+              composed: true,
+              detail: { source: 'interaction', selected },
+            })
+          );
+      });
+      return;
+    }
+    const path = JSON.parse(clicked.dataset.path ?? '[]') as Path;
 
     if (this.multi) this.multiSelect(event, path, selectedValue);
     else this.singleSelect(event, path, selectedValue);
@@ -201,10 +246,35 @@ export class OscdTree extends LitElement {
     this.container.scrollLeft = 1000 * this.depth;
   }
 
-  async renderEntry(
+  async renderCell(
     path: Path,
     previousPath: Path = []
   ): Promise<TemplateResult> {
+    let defaultSelected = false;
+    const afterRender = (item?: Element) => {
+      if (!item) defaultSelected = false;
+      if (defaultSelected || !item) return;
+      defaultSelected = true;
+      if (this.isMandatory(path)) {
+        if (this.multi) {
+          let dir = this.selection;
+          for (const slug of path.slice(0, -1)) dir = dir[slug]; // rec. descent
+          if (dir[path[path.length - 1]]) return;
+          dir[path[path.length - 1]] = {};
+          this.requestUpdate('selection');
+        } else {
+          const selection: Selection = {};
+          let dir = selection;
+          for (const slug of path) {
+            dir[slug] = {};
+            dir = dir[slug];
+          }
+          if (depth(selection) > depth(this.selection))
+            this.selection = selection;
+        }
+      }
+    };
+
     const parent = path.slice(0, -1);
     const entry = path[path.length - 1];
 
@@ -212,53 +282,103 @@ export class OscdTree extends LitElement {
       .map(p => JSON.stringify(p))
       .includes(JSON.stringify(path));
     const noninteractive = path.every((s, i) => previousPath[i] === s);
+    const disabled = this.isMandatory(path);
 
+    const collapsed = this.collapsed.has(JSON.stringify(path));
     const expandable = (await this.read(path)).entries.length > 0;
     const iconDirection = expandable ? 'right' : 'left';
-    const iconType = activated ? 'arrow' : 'chevron';
+    const iconType = activated ? 'chevron' : 'arrow';
     const icon = `${iconType}_${iconDirection}`;
     return html`<mwc-list-item
       value="${entry}"
-      .dataPath=${parent}
+      data-path=${JSON.stringify(parent)}
       hasMeta
       ?activated=${activated}
+      ?disabled=${disabled}
       ?noninteractive=${noninteractive}
       style="${noninteractive ? 'opacity: 0.38' : ''}"
-      ><mwc-icon slot="meta">${icon}</mwc-icon>${this.getDisplayString(
-        entry,
-        parent
-      )}</mwc-list-item
+      ${ref(afterRender)}
+      >${(disabled || noninteractive) && !collapsed
+        ? html``
+        : html`<mwc-icon slot="meta"
+            >${collapsed ? 'more_horiz' : icon}</mwc-icon
+          >`}${this.getText(path)}</mwc-list-item
     >`;
   }
 
-  async renderColumn(column: (Path | undefined)[]): Promise<TemplateResult> {
+  renderColumn(column: (Path | undefined)[]): TemplateResult {
     const items: TemplateResult[] = [];
-    const placeholder = html`<mwc-list-item noninteractive></mwc-list-item>`;
 
+    if (column.length === 0 || column.every(p => p === undefined))
+      return html``;
     for (let i = 0; i < column.length; i += 1) {
       const path = column[i];
       items.push(
         path
           ? html`${until(
-              this.renderEntry(column[i]!, column[i - 1]),
-              placeholder
+              this.renderCell(column[i]!, column[i - 1]),
+              placeholderCell
             )}`
-          : placeholder
+          : placeholderCell
       );
     }
 
-    if (items.length === 0) return html``;
     return html`<mwc-list
       @selected=${(e: SingleSelectedEvent) => this.select(e)}
-      >${items}</mwc-list
+      >${this.multi
+        ? html`<mwc-list-item hasMeta value="selectAll"
+            ><mwc-icon slot="meta">done_all</mwc-icon></mwc-list-item
+          >`
+        : placeholderCell}${items}</mwc-list
     >`;
   }
 
+  renderExpandCell(path: Path): TemplateResult {
+    const needle = JSON.stringify(path);
+    if (!this.collapsed.has(needle)) return placeholderCell;
+    if (!path.length) return placeholderCell;
+    return html`<mwc-list-item class="filter" data-path="${needle}" hasMeta
+      ><mwc-icon slot="meta">unfold_more</mwc-icon></mwc-list-item
+    >`;
+  }
+
+  renderCollapseCell(path: Path): TemplateResult {
+    const needle = JSON.stringify(path.slice(0, -1));
+    if (path.length < 2) return placeholderCell;
+    return html`<mwc-list-item class="filter" data-path="${needle}" hasMeta
+      ><mwc-icon slot="meta">unfold_less</mwc-icon></mwc-list-item
+    >`;
+  }
+
+  renderFilterColumns(rows: Path[]): TemplateResult {
+    return html`<mwc-list
+        class="collapse"
+        @selected=${(e: SingleSelectedEvent) => {
+          const { path } = (<ListItem>(<List>e.target).selected).dataset;
+          if (path) this.toggleCollapse(path);
+        }}
+        >${placeholderCell}${rows.map(p =>
+          this.renderCollapseCell(p)
+        )}</mwc-list
+      >
+      <mwc-list
+        class="expand"
+        @selected=${(e: SingleSelectedEvent) => {
+          const { path } = (<ListItem>(<List>e.target).selected).dataset;
+          if (path) this.toggleCollapse(path);
+        }}
+        >${placeholderCell}${rows.map(p => this.renderExpandCell(p))}</mwc-list
+      > `;
+  }
+
   async renderColumns(): Promise<TemplateResult> {
-    const cols = await this.columns();
+    const rows = await this.rows();
+    const cols = getColumns(rows, this.depth + 1);
     const columns = cols.map(c => this.renderColumn(c));
 
-    return html`${columns.map(column => until(column, waitingList))}`;
+    return html`${columns.map(column =>
+      until(column, waitingColumn)
+    )}${this.renderFilterColumns(rows)}`;
   }
 
   render(): TemplateResult {
@@ -268,7 +388,7 @@ export class OscdTree extends LitElement {
         icon="search"
         @input=${() => this.requestUpdate('filter')}
       ></mwc-textfield>
-      <div class="pane">${until(this.renderColumns(), waitingList)}</div>`;
+      <div class="pane">${until(this.renderColumns(), waitingColumn)}</div>`;
   }
 
   static styles = css`
@@ -308,6 +428,10 @@ export class OscdTree extends LitElement {
 
     a:visited {
       color: var(--mdc-theme-secondary);
+    }
+
+    mwc-list-item.filter {
+      color: var(--mdc-theme-text-hint-on-background, rgba(0, 0, 0, 0.38));
     }
   `;
 }

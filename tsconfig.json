@@ -18,5 +18,5 @@
     "incremental": true,
     "tsBuildInfoFile": ".tsbuildinfo"
   },
-  "files": ["oscd-tree.ts"]
+  "include": ["oscd-tree.ts", "stories/*"]
 }

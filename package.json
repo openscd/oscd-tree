@@ -18,7 +18,7 @@
     "test": "tsc && wtr --coverage",
     "test:watch": "tsc && concurrently -k -r \"tsc --watch --preserveWatchOutput\" \"wtr --watch\"",
     "storybook": "tsc && concurrently -k -r \"tsc --watch --preserveWatchOutput\" \"wds -c .storybook/server.mjs\"",
-    "storybook:build": "tsc && npm run analyze -- --exclude dist && build-storybook",
+    "storybook:build": "tsc && build-storybook",
     "deploy": "npm run storybook:build && gh-pages --dist 'storybook-static'"
   },
   "dependencies": {

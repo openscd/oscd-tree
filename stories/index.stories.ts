@@ -13,12 +13,6 @@ export default {
       required: false,
       control: 'boolean',
     },
-    selection: {
-      type: 'object',
-      defaultValue: {},
-      required: false,
-      control: 'array',
-    },
     path: {
       type: 'array',
       defaultValue: [],
@@ -45,6 +39,7 @@ type ArgTypes = {
   paths?: Path[];
   path?: Path;
   read: (path: Path) => Promise<Directory>;
+  isMandatory: (path: Path) => boolean;
 };
 
 const Template: Story<ArgTypes> = ({
@@ -53,32 +48,46 @@ const Template: Story<ArgTypes> = ({
   paths = [[]],
   read = async p => {
     if (!p.length) return { path: p, entries: ['root 1', 'root 2'] };
-    const whose = (c: string) => `${p[p.length - 1].at(-1)}'s ${c}`;
     if (p.length === 3)
-      return { path: p, entries: ['leaf 1', 'leaf 2', 'leaf 3'].map(whose) };
+      return {
+        path: p,
+        entries: ['option o', 'alternative a', 'required r', 'choice c'],
+      };
     if (p.length > 3) return { path: p, entries: [] };
     return {
       path: p,
-      entries: ['child 1', 'child 2', 'child 3'].map(whose),
+      entries: ['option O', 'required R', 'choice C'],
     };
   },
+  isMandatory = p => (p[p.length - 1] ?? '').includes('required'),
 }: ArgTypes) =>
   multi
-    ? html`<oscd-tree multi .paths=${paths} .read=${read}></oscd-tree>`
-    : html` <oscd-tree .path=${path} .read=${read}></oscd-tree> `;
+    ? html`<oscd-tree
+        multi
+        .paths=${paths}
+        .read=${read}
+        .isMandatory=${isMandatory}
+      ></oscd-tree>`
+    : html`
+        <oscd-tree
+          .path=${path}
+          .read=${read}
+          .isMandatory=${isMandatory}
+        ></oscd-tree>
+      `;
 
 export const Regular = Template.bind({});
 
-export const CustomPath = Template.bind({});
-CustomPath.args = {
-  path: ['root 2', "2's child 2", "2's child 3", "3's leaf 1"],
+export const SingleSelectWithPath = Template.bind({});
+SingleSelectWithPath.args = {
+  path: ['root 2', 'choice C', 'option O', 'choice c'],
 };
 
-export const CustomPaths = Template.bind({});
-CustomPaths.args = {
+export const MultiSelectWithPaths = Template.bind({});
+MultiSelectWithPaths.args = {
   multi: true,
   paths: [
-    ['root 2', "2's child 2", "2's child 3"],
-    ['root 1', "1's child 3", "3's child 1", "1's leaf 2"],
+    ['root 2', 'choice C', 'option O', 'choice c'],
+    ['root 1', 'option O', 'choice C', 'alternative a'],
   ],
 };
