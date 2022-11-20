@@ -1,0 +1,49 @@
+<title>OpenSCD Core Demo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@300&family=Roboto:wght@300;400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Material+Icons&display=block">
+
+<oscd-tree multi></oscd-tree>
+
+<script type="module">
+</script>
+
+<script type="module">
+import '../dist/oscd-tree.js';
+
+const oscdTree = document.querySelector('oscd-tree');
+await oscdTree.updateComplete;
+
+import { data } from '../dist/data-model.js';
+
+if (window.confirm('serialize data?')) console.log(
+  JSON.stringify(
+    data,
+    (name, o) =>
+      o?.element
+        ? {
+            tagName: o.element.tagName,
+            dependencies: o.dependencies,
+            mandatory: o.element.getAttribute('presCond') === 'M',
+          }
+        : o,
+    '  '
+  )
+);
+
+async function read(path) {
+  let dir = data;
+  for (const slug of path) dir = dir[slug].dependencies;
+
+  return { path, entries: Object.keys(dir) };
+}
+
+function isMandatory(path) {
+  let dir = data;
+  for (const slug of path.slice(0,-1))
+    dir = dir[slug].dependencies;
+  return dir[path[path.length - 1]].element.getAttribute('presCond') === 'M'
+}
+
+oscdTree.read = read;
+oscdTree.isMandatory = isMandatory;
+</script>

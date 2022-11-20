@@ -28,6 +28,21 @@ export default {
   },
 };
 
+const data = await fetch('data.json').then(r => r.json());
+
+async function nsdRead(path: string[]) {
+  let dir = data;
+  for (const slug of path) dir = dir[slug].dependencies;
+
+  return { path, entries: Object.keys(dir) };
+}
+
+function nsdIsMandatory(path: string[]) {
+  let dir = data;
+  for (const slug of path.slice(0, -1)) dir = dir[slug].dependencies;
+  return dir[path[path.length - 1]].mandatory;
+}
+
 interface Story<T> {
   (args: T): TemplateResult;
   args?: Partial<T>;
@@ -46,20 +61,8 @@ const Template: Story<ArgTypes> = ({
   multi = false,
   path = [],
   paths = [[]],
-  read = async p => {
-    if (!p.length) return { path: p, entries: ['root 1', 'root 2'] };
-    if (p.length === 3)
-      return {
-        path: p,
-        entries: ['option o', 'alternative a', 'required r', 'choice c'],
-      };
-    if (p.length > 3) return { path: p, entries: [] };
-    return {
-      path: p,
-      entries: ['option O', 'required R', 'choice C'],
-    };
-  },
-  isMandatory = p => (p[p.length - 1] ?? '').includes('required'),
+  read = nsdRead,
+  isMandatory = nsdIsMandatory,
 }: ArgTypes) =>
   multi
     ? html`<oscd-tree
@@ -80,14 +83,14 @@ export const Regular = Template.bind({});
 
 export const SingleSelectWithPath = Template.bind({});
 SingleSelectWithPath.args = {
-  path: ['root 2', 'choice C', 'option O', 'choice c'],
+  path: ['MMXU', 'A', 'phsA', 'cVal', 'mag', 'i'],
 };
 
 export const MultiSelectWithPaths = Template.bind({});
 MultiSelectWithPaths.args = {
   multi: true,
   paths: [
-    ['root 2', 'choice C', 'option O', 'choice c'],
-    ['root 1', 'option O', 'choice C', 'alternative a'],
+    ['MMXU', 'A', 'phsA', 'cVal', 'mag', 'i'],
+    ['MMXU', 'A', 'phsA', 'cVal', 'ang', 'i'],
   ],
 };

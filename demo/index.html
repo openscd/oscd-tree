@@ -10,9 +10,22 @@ import '../dist/oscd-tree.js';
 const oscdTree = document.querySelector('oscd-tree');
 await oscdTree.updateComplete;
 
-oscdTree.selection = {'a': {} }
-oscdTree.read = async path => ({
-  path,
-  entries: ['a', 'b', 'c', 'd'].includes(path[path.length - 1]) ? [] : ['a', 'b', 'c', 'd', 'w', 'x', 'y', 'z'],
-})
+const data = await fetch('/data.json').then(r => r.json());
+
+async function read(path) {
+  let dir = data;
+  for (const slug of path) dir = dir[slug].dependencies;
+
+  return { path, entries: Object.keys(dir) };
+}
+
+function isMandatory(path) {
+  let dir = data;
+  for (const slug of path.slice(0,-1))
+    dir = dir[slug].dependencies;
+  return dir[path[path.length - 1]].mandatory;
+}
+
+oscdTree.read = read;
+oscdTree.isMandatory = isMandatory;
 </script>

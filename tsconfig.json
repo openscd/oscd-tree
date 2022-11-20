@@ -18,5 +18,5 @@
     "incremental": true,
     "tsBuildInfoFile": ".tsbuildinfo"
   },
-  "include": ["oscd-tree.ts", "stories/*"]
+  "include": ["oscd-tree.ts", "stories/*", "nsd/nsd.ts", "./data-model.ts"]
 }
