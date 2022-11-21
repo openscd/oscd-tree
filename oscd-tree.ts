@@ -113,6 +113,10 @@ export class OscdTree extends LitElement {
   @property({ attribute: false })
   loaded: Promise<void> = Promise.resolve();
 
+  get filterRegex(): RegExp {
+    return new RegExp(this.searchUI.value, 'iu');
+  }
+
   @property({ type: String })
   get filter(): string {
     return this.searchUI.value;
@@ -127,6 +131,8 @@ export class OscdTree extends LitElement {
     return path[path.length - 1] ?? '';
   }
   /* eslint-enable @typescript-eslint/no-unused-vars */
+
+  @query('#selection-input') selectionInputUI!: HTMLInputElement;
 
   @query('mwc-textfield[icon="search"]')
   searchUI!: TextField;
@@ -152,7 +158,7 @@ export class OscdTree extends LitElement {
         r =>
           !rs.some(r2 => r2.length > r.length && r.every((s, i) => r2[i] === s))
       )
-      .filter(r => this.filter === '' || r.join(' ').includes(this.filter))
+      .filter(r => this.filter === '' || r.join(' ').match(this.filterRegex))
       .map(r => {
         for (let i = r.length - 1; i > 0; i -= 1)
           if (this.collapsed.has(JSON.stringify(r.slice(0, -i))))
@@ -382,16 +388,70 @@ export class OscdTree extends LitElement {
   }
 
   render(): TemplateResult {
-    return html`<mwc-textfield
+    return html`<aside>
+      <h3>Template Generator POC</h3>
+        <button
+        @click=${() => {
+          const blob = new Blob([JSON.stringify(this.selection, null, '  ')], {
+            type: 'application/json',
+          });
+
+          const a = document.createElement('a');
+          a.download = 'selection.json';
+          a.href = URL.createObjectURL(blob);
+          a.dataset.downloadurl = ['application/xml', a.download, a.href].join(
+            ':'
+          );
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => {
+            URL.revokeObjectURL(a.href);
+          }, 5000);
+        }}
+      >
+        Save selection</button
+      ><br>
+      <form>
+        <label for="selection-input">Load selection</label><br>
+        <input @click=${(event: MouseEvent) => {
+          (<HTMLInputElement>event.target).value = '';
+        }} @change=${async (event: InputEvent) => {
+      const file =
+        (<HTMLInputElement | null>event.target)?.files?.item(0) ?? false;
+      if (!file) return;
+
+      this.selection = JSON.parse(await file.text());
+      this.searchUI.value = this.depth ? ' ' : '';
+      this.collapsed = new Set();
+      this.selectionInputUI.onchange = null;
+    }} id="selection-input" accept=".json" type="file"></input>
+      </form>
+    </aside>
+      <mwc-textfield
         style="--mdc-shape-small: 28px;"
         outlined
         icon="search"
+        label="Regular Expression"
         @input=${() => this.requestUpdate('filter')}
-      ></mwc-textfield>
+      ></mwc-textfield
+    >
       <div class="pane">${until(this.renderColumns(), waitingColumn)}</div>`;
   }
 
   static styles = css`
+    aside {
+      display: flex;
+      flex-direction: column;
+      margin: 8px;
+      padding-bottom: 8px;
+      font-family: var(--mdc-typography-font-family, Roboto, sans-serif);
+      font-size: 14px;
+      color: var(--mdc-theme-text-primary-on-background);
+      width: min-content;
+    }
+
     div.pane {
       display: flex;
       flex-direction: row;

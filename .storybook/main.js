@@ -6,7 +6,7 @@ module.exports = {
     // add a new plugin to the build
     config.plugins.push(copy({
       targets: [
-        { src: 'data.json', dest: 'storybook-static' },
+        { src: 'data.json', dest: 'dist' },
       ]
     }));
 
