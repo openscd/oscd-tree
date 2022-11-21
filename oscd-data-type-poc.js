@@ -4996,9 +4996,16 @@ let OscdTree = class OscdTree extends s$3 {
         const disabled = this.isMandatory(path);
         const collapsed = this.collapsed.has(JSON.stringify(path));
         const expandable = (await this.read(path)).entries.length > 0;
-        const iconDirection = expandable ? 'right' : 'left';
-        const iconType = activated ? 'chevron' : 'arrow';
-        const icon = `${iconType}_${iconDirection}`;
+        let icon = '';
+        if (expandable)
+            if (activated)
+                icon = 'expand_less';
+            else
+                icon = 'expand_more';
+        else if (activated)
+            icon = 'remove';
+        else
+            icon = 'add';
         return y `<mwc-list-item
       value="${entry}"
       data-path=${JSON.stringify(parent)}
@@ -5011,7 +5018,7 @@ let OscdTree = class OscdTree extends s$3 {
       >${(disabled || noninteractive) && !collapsed
             ? y ``
             : y `<mwc-icon slot="meta"
-            >${collapsed ? 'more_horiz' : icon}</mwc-icon
+            >${collapsed ? 'unfold_more' : icon}</mwc-icon
           >`}${this.getText(path)}</mwc-list-item
     >`;
     }
