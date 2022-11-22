@@ -134,7 +134,7 @@ export class OscdTree extends LitElement {
 
   @query('#selection-input') selectionInputUI!: HTMLInputElement;
 
-  @query('mwc-textfield[icon="search"]')
+  @query('mwc-textfield')
   searchUI!: TextField;
 
   @query('div')
@@ -292,9 +292,17 @@ export class OscdTree extends LitElement {
 
     const collapsed = this.collapsed.has(JSON.stringify(path));
     const expandable = (await this.read(path)).entries.length > 0;
-    const iconDirection = expandable ? 'right' : 'left';
-    const iconType = activated ? 'chevron' : 'arrow';
-    const icon = `${iconType}_${iconDirection}`;
+    let icon = '';
+    if (expandable)
+      if (activated) icon = 'expand_less';
+      else icon = 'expand_more';
+    else if (activated) icon = 'remove';
+    else icon = 'add';
+
+    if (disabled)
+      if (collapsed) icon = 'more_vert';
+      else icon = '';
+    if (noninteractive) icon = 'subdirectory_arrow_right';
     return html`<mwc-list-item
       value="${entry}"
       data-path=${JSON.stringify(parent)}
@@ -304,11 +312,9 @@ export class OscdTree extends LitElement {
       ?noninteractive=${noninteractive}
       style="${noninteractive ? 'opacity: 0.38' : ''}"
       ${ref(afterRender)}
-      >${(disabled || noninteractive) && !collapsed
-        ? html``
-        : html`<mwc-icon slot="meta"
-            >${collapsed ? 'more_horiz' : icon}</mwc-icon
-          >`}${this.getText(path)}</mwc-list-item
+      >${icon
+        ? html`<mwc-icon slot="meta">${icon}</mwc-icon>`
+        : html``}${this.getText(path)}</mwc-list-item
     >`;
   }
 
@@ -356,17 +362,8 @@ export class OscdTree extends LitElement {
     >`;
   }
 
-  renderFilterColumns(rows: Path[]): TemplateResult {
-    return html`<mwc-list
-        class="collapse"
-        @selected=${(e: SingleSelectedEvent) => {
-          const { path } = (<ListItem>(<List>e.target).selected).dataset;
-          if (path) this.toggleCollapse(path);
-        }}
-        >${placeholderCell}${rows.map(p =>
-          this.renderCollapseCell(p)
-        )}</mwc-list
-      >
+  renderExpandColumn(rows: Path[]): TemplateResult {
+    return html`
       <mwc-list
         class="expand"
         @selected=${(e: SingleSelectedEvent) => {
@@ -374,7 +371,19 @@ export class OscdTree extends LitElement {
           if (path) this.toggleCollapse(path);
         }}
         >${placeholderCell}${rows.map(p => this.renderExpandCell(p))}</mwc-list
-      > `;
+      >
+    `;
+  }
+
+  renderCollapseColumn(rows: Path[]): TemplateResult {
+    return html`<mwc-list
+      class="collapse"
+      @selected=${(e: SingleSelectedEvent) => {
+        const { path } = (<ListItem>(<List>e.target).selected).dataset;
+        if (path) this.toggleCollapse(path);
+      }}
+      >${placeholderCell}${rows.map(p => this.renderCollapseCell(p))}</mwc-list
+    >`;
   }
 
   async renderColumns(): Promise<TemplateResult> {
@@ -382,9 +391,11 @@ export class OscdTree extends LitElement {
     const cols = getColumns(rows, this.depth + 1);
     const columns = cols.map(c => this.renderColumn(c));
 
-    return html`${columns.map(column =>
+    return html`${cols.length > 1
+      ? this.renderCollapseColumn(rows)
+      : ''}${columns.map(column =>
       until(column, waitingColumn)
-    )}${this.renderFilterColumns(rows)}`;
+    )}${this.renderExpandColumn(rows)}`;
   }
 
   render(): TemplateResult {
@@ -413,6 +424,12 @@ export class OscdTree extends LitElement {
       >
         Save selection</button
       ><br>
+      <button
+        @click=${() => {
+          this.collapsed = new Set();
+          this.selection = {};
+        }}
+        >Reset</button>
       <form>
         <label for="selection-input">Load selection</label><br>
         <input @click=${(event: MouseEvent) => {
@@ -433,6 +450,12 @@ export class OscdTree extends LitElement {
         style="--mdc-shape-small: 28px;"
         outlined
         icon="search"
+        ${ref(elm =>
+          elm?.setAttribute(
+            'icon',
+            (elm as TextField).value ? 'saved_search' : 'search'
+          )
+        )}
         label="Regular Expression"
         @input=${() => this.requestUpdate('filter')}
       ></mwc-textfield
