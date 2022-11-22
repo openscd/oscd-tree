@@ -41,7 +41,8 @@ export declare class OscdTree extends LitElement {
     renderColumn(column: (Path | undefined)[]): TemplateResult;
     renderExpandCell(path: Path): TemplateResult;
     renderCollapseCell(path: Path): TemplateResult;
-    renderFilterColumns(rows: Path[]): TemplateResult;
+    renderExpandColumn(rows: Path[]): TemplateResult;
+    renderCollapseColumn(rows: Path[]): TemplateResult;
     renderColumns(): Promise<TemplateResult>;
     render(): TemplateResult;
     static styles: import("lit").CSSResult;

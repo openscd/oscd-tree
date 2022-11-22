@@ -242,6 +242,13 @@ let OscdTree = class OscdTree extends LitElement {
             icon = 'remove';
         else
             icon = 'add';
+        if (disabled)
+            if (collapsed)
+                icon = 'more_vert';
+            else
+                icon = '';
+        if (noninteractive)
+            icon = 'subdirectory_arrow_right';
         return html `<mwc-list-item
       value="${entry}"
       data-path=${JSON.stringify(parent)}
@@ -251,11 +258,9 @@ let OscdTree = class OscdTree extends LitElement {
       ?noninteractive=${noninteractive}
       style="${noninteractive ? 'opacity: 0.38' : ''}"
       ${ref(afterRender)}
-      >${(disabled || noninteractive) && !collapsed
-            ? html ``
-            : html `<mwc-icon slot="meta"
-            >${collapsed ? 'unfold_more' : icon}</mwc-icon
-          >`}${this.getText(path)}</mwc-list-item
+      >${icon
+            ? html `<mwc-icon slot="meta">${icon}</mwc-icon>`
+            : html ``}${this.getText(path)}</mwc-list-item
     >`;
     }
     renderColumn(column) {
@@ -295,16 +300,8 @@ let OscdTree = class OscdTree extends LitElement {
       ><mwc-icon slot="meta">unfold_less</mwc-icon></mwc-list-item
     >`;
     }
-    renderFilterColumns(rows) {
-        return html `<mwc-list
-        class="collapse"
-        @selected=${(e) => {
-            const { path } = e.target.selected.dataset;
-            if (path)
-                this.toggleCollapse(path);
-        }}
-        >${placeholderCell}${rows.map(p => this.renderCollapseCell(p))}</mwc-list
-      >
+    renderExpandColumn(rows) {
+        return html `
       <mwc-list
         class="expand"
         @selected=${(e) => {
@@ -313,13 +310,27 @@ let OscdTree = class OscdTree extends LitElement {
                 this.toggleCollapse(path);
         }}
         >${placeholderCell}${rows.map(p => this.renderExpandCell(p))}</mwc-list
-      > `;
+      >
+    `;
+    }
+    renderCollapseColumn(rows) {
+        return html `<mwc-list
+      class="collapse"
+      @selected=${(e) => {
+            const { path } = e.target.selected.dataset;
+            if (path)
+                this.toggleCollapse(path);
+        }}
+      >${placeholderCell}${rows.map(p => this.renderCollapseCell(p))}</mwc-list
+    >`;
     }
     async renderColumns() {
         const rows = await this.rows();
         const cols = getColumns(rows, this.depth + 1);
         const columns = cols.map(c => this.renderColumn(c));
-        return html `${columns.map(column => until(column, waitingColumn))}${this.renderFilterColumns(rows)}`;
+        return html `${cols.length > 1
+            ? this.renderCollapseColumn(rows)
+            : ''}${columns.map(column => until(column, waitingColumn))}${this.renderExpandColumn(rows)}`;
     }
     render() {
         return html `<aside>
@@ -364,6 +375,7 @@ let OscdTree = class OscdTree extends LitElement {
         style="--mdc-shape-small: 28px;"
         outlined
         icon="search"
+        ${ref(elm => elm === null || elm === void 0 ? void 0 : elm.setAttribute('icon', elm.value ? 'saved_search' : 'search'))}
         label="Regular Expression"
         @input=${() => this.requestUpdate('filter')}
       ></mwc-textfield
@@ -453,7 +465,7 @@ __decorate([
     query('#selection-input')
 ], OscdTree.prototype, "selectionInputUI", void 0);
 __decorate([
-    query('mwc-textfield[icon="search"]')
+    query('mwc-textfield')
 ], OscdTree.prototype, "searchUI", void 0);
 __decorate([
     query('div')
