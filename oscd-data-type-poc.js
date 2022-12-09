@@ -5119,6 +5119,12 @@ let OscdTree = class OscdTree extends s$3 {
       >
         Save selection</button
       ><br>
+      <button
+        @click=${() => {
+            this.collapsed = new Set();
+            this.selection = {};
+        }}
+        >Reset</button>
       <form>
         <label for="selection-input">Load selection</label><br>
         <input @click=${(event) => {
