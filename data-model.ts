@@ -1,5 +1,5 @@
 /* eslint-disable no-param-reassign */
-import { nsd73, nsd74 } from './nsd/nsd.js';
+import { nsd72, nsd73, nsd74, nsd81 } from './nsd/nsd.js';
 
 /* eslint-disable-next-line no-use-before-define */
 type DataModel = Record<string, TypeDescription>;
@@ -68,14 +68,20 @@ export function addSDAs(dataModel: DataModel) {
   Object.values(dataModel).forEach(({ dependencies: dos }) => {
     Object.values(dos).forEach(({ dependencies: sdos }) => {
       Object.values(sdos).forEach(({ element: sdo, dependencies: ssdos }) => {
-        if (sdo.tagName === 'DataAttribute')
+        if (
+          sdo.tagName === 'DataAttribute' ||
+          sdo.tagName === 'ServiceDataAttribute'
+        )
           das.add({
             element: sdo,
             dependencies: ssdos,
           });
         Object.values(ssdos).forEach(
           ({ element: ssdo, dependencies: sdas }) => {
-            if (ssdo.tagName === 'DataAttribute')
+            if (
+              ssdo.tagName === 'DataAttribute' ||
+              ssdo.tagName === 'ServiceDataAttribute'
+            )
               das.add({
                 element: ssdo,
                 dependencies: sdas,
@@ -85,33 +91,81 @@ export function addSDAs(dataModel: DataModel) {
       });
     });
   });
+
   das.forEach(({ element: da, dependencies: sdas }) => {
     if (da.getAttribute('typeKind') === 'ENUMERATED') {
       Array.from(
-        nsd73.querySelectorAll(
+        nsd72.querySelectorAll(
           `Enumerations > Enumeration[name="${da.getAttribute(
             'type'
           )}"] > Literal`
         )
-      ).forEach(literal => {
-        sdas[literal.getAttribute('name')!] = {
-          element: literal,
-          dependencies: {},
-        };
-      }); // FIXME: Get Enumerations, ConstructedAttributes etc from other nsds
+      )
+        .concat(
+          Array.from(
+            nsd73.querySelectorAll(
+              `Enumerations > Enumeration[name="${da.getAttribute(
+                'type'
+              )}"] > Literal`
+            )
+          )
+        )
+        .concat(
+          Array.from(
+            nsd81.querySelectorAll(
+              `Enumerations > Enumeration[name="${da.getAttribute(
+                'type'
+              )}"] > Literal`
+            )
+          )
+        )
+        .concat(
+          Array.from(
+            nsd74.querySelectorAll(
+              `Enumerations > Enumeration[name="${da.getAttribute(
+                'type'
+              )}"] > Literal`
+            )
+          )
+        )
+        .forEach(literal => {
+          sdas[literal.getAttribute('name')!] = {
+            element: literal,
+            dependencies: {},
+          };
+        });
     }
     if (da.getAttribute('typeKind') !== 'CONSTRUCTED') return;
 
     Array.from(
-      nsd73.querySelectorAll(
+      nsd72.querySelectorAll(
         `ConstructedAttributes > ConstructedAttribute[name="${da.getAttribute(
           'type'
         )}"] > SubDataAttribute`
       )
-    ).forEach(sda => {
-      sdas[sda.getAttribute('name')!] = { element: sda, dependencies: {} };
-      das.add(sdas[sda.getAttribute('name')!]);
-    });
+    )
+      .concat(
+        Array.from(
+          nsd73.querySelectorAll(
+            `ConstructedAttributes > ConstructedAttribute[name="${da.getAttribute(
+              'type'
+            )}"] > SubDataAttribute`
+          )
+        )
+      )
+      .concat(
+        Array.from(
+          nsd81.querySelectorAll(
+            `ServiceConstructedAttributes > ServiceConstructedAttribute[name="${da.getAttribute(
+              'type'
+            )}"] > SubDataAttribute`
+          )
+        )
+      )
+      .forEach(sda => {
+        sdas[sda.getAttribute('name')!] = { element: sda, dependencies: {} };
+        das.add(sdas[sda.getAttribute('name')!]);
+      });
   });
 }
 
@@ -137,6 +191,13 @@ function addDAs(dataModel: DataModel) {
             });
           }
         );
+        Array.from(
+          nsd81.querySelectorAll(
+            `ServiceCDCs > ServiceCDC[cdc="${cdc}"] > ServiceDataAttribute`
+          )
+        ).forEach(da => {
+          sdos[da.getAttribute('name')!] = { element: da, dependencies: {} };
+        });
       }
     );
   });
